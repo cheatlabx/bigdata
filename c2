@@ -1,0 +1,57 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Create Spark session
+spark = SparkSession.builder.appName("RetailAnalysis").getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read CSV file
+df = spark.read.csv(
+    "sales_data.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Select required columns
+df_selected = df.select(
+    "OrderID",
+    "ProdName",
+    "Category",
+    "Qty",
+    "UnitPrice"
+)
+
+# Rename columns
+df_renamed = df_selected.withColumnRenamed(
+    "ProdName", "Product_Name"
+).withColumnRenamed(
+    "UnitPrice", "Price"
+)
+
+# Filter Electronics products with price > 100
+df_filtered = df_renamed.filter(
+    (col("Category") == "Electronics") &
+    (col("Price") > 100)
+)
+
+# Add Total_Amount column
+df_total = df_filtered.withColumn(
+    "Total_Amount",
+    col("Qty") * col("Price")
+)
+
+# Drop Category column
+df_drop = df_total.drop("Category")
+
+# Sort data
+df_sorted = df_drop.orderBy(
+    col("Total_Amount").desc()
+)
+
+# Display final output
+print("Final Retail Sales Data")
+df_sorted.show()
+
+# Stop Spark
+spark.stop()
