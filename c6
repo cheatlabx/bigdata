@@ -1,0 +1,81 @@
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.regression import LinearRegression
+from pyspark.ml.evaluation import RegressionEvaluator
+
+# Create Spark session
+spark = SparkSession.builder.appName("HousePricePrediction").getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read CSV file
+df = spark.read.csv(
+    "house_prices.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Combine input columns into feature vector
+assembler = VectorAssembler(
+    inputCols=["SqFt", "Bedrooms", "Age"],
+    outputCol="features"
+)
+
+# Create final dataset
+data = assembler.transform(df).select(
+    "features",
+    "Price"
+)
+
+# Split data into training and testing
+train_data, test_data = data.randomSplit(
+    [0.8, 0.2],
+    seed=42
+)
+
+# Create Linear Regression model
+lr = LinearRegression(
+    featuresCol="features",
+    labelCol="Price"
+)
+
+# Train model
+model = lr.fit(train_data)
+
+# Predict prices
+predictions = model.transform(test_data)
+
+# Show predictions
+print("Actual vs Predicted Prices")
+predictions.select(
+    "Price",
+    "prediction"
+).show()
+
+# RMSE evaluation
+rmse_evaluator = RegressionEvaluator(
+    labelCol="Price",
+    predictionCol="prediction",
+    metricName="rmse"
+)
+
+rmse = rmse_evaluator.evaluate(predictions)
+
+# R2 evaluation
+r2_evaluator = RegressionEvaluator(
+    labelCol="Price",
+    predictionCol="prediction",
+    metricName="r2"
+)
+
+r2 = r2_evaluator.evaluate(predictions)
+
+# Show results
+print("RMSE:", rmse)
+print("R2 Score:", r2)
+
+print("Coefficients:", model.coefficients)
+print("Intercept:", model.intercept)
+
+# Stop Spark
+spark.stop()
