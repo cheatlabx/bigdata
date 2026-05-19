@@ -1,0 +1,64 @@
+from pyspark.sql import SparkSession
+
+# Create Spark session
+spark = SparkSession.builder.appName("BusinessAnalytics").getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read customer data
+df_cust = spark.read.csv(
+    "customers.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Read transaction data
+df_trans = spark.read.csv(
+    "transactions.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Create temporary SQL views
+df_cust.createOrReplaceTempView("customers")
+df_trans.createOrReplaceTempView("transactions")
+
+# INNER JOIN
+print("Customers With Transactions")
+spark.sql("""
+    SELECT c.Name, t.Amount, t.Date
+    FROM customers c
+    INNER JOIN transactions t
+    ON c.CustID = t.CustID
+""").show()
+
+# LEFT JOIN
+print("All Customers With Spending")
+spark.sql("""
+    SELECT c.Name, t.Amount
+    FROM customers c
+    LEFT JOIN transactions t
+    ON c.CustID = t.CustID
+""").show()
+
+# GROUP BY + HAVING
+print("High Value Customers")
+spark.sql("""
+    SELECT CustID, SUM(Amount) AS Total_Spend
+    FROM transactions
+    GROUP BY CustID
+    HAVING Total_Spend > 500
+    ORDER BY Total_Spend DESC
+""").show()
+
+# ORDER BY + LIMIT
+print("Top 3 Transactions")
+spark.sql("""
+    SELECT TransID, Amount
+    FROM transactions
+    ORDER BY Amount DESC
+    LIMIT 3
+""").show()
+
+# Stop Spark
+spark.stop()
