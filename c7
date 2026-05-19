@@ -1,0 +1,106 @@
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
+# Create Spark session
+spark = SparkSession.builder.appName("ChurnPrediction").getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read CSV file
+df = spark.read.csv(
+    "churn_data.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Combine input columns
+assembler = VectorAssembler(
+    inputCols=[
+        "Tenure",
+        "MonthlyCharges",
+        "TotalCharges"
+    ],
+    outputCol="features"
+)
+
+# Create dataset
+data = assembler.transform(df).select(
+    "features",
+    "Churn"
+)
+
+# Split train and test data
+train_data, test_data = data.randomSplit(
+    [0.7, 0.3],
+    seed=42
+)
+
+# Create Logistic Regression model
+lr = LogisticRegression(
+    featuresCol="features",
+    labelCol="Churn"
+)
+
+# Train model
+model = lr.fit(train_data)
+
+# Predict churn
+predictions = model.transform(test_data)
+
+# Show predictions
+print("Actual vs Predicted Churn")
+predictions.select(
+    "Churn",
+    "prediction",
+    "probability"
+).show()
+
+# Confusion Matrix
+print("Confusion Matrix")
+predictions.groupBy(
+    "Churn",
+    "prediction"
+).count().show()
+
+# Evaluator
+evaluator = MulticlassClassificationEvaluator(
+    labelCol="Churn",
+    predictionCol="prediction"
+)
+
+# Accuracy
+accuracy = evaluator.evaluate(
+    predictions,
+    {evaluator.metricName: "accuracy"}
+)
+
+# F1 Score
+f1 = evaluator.evaluate(
+    predictions,
+    {evaluator.metricName: "f1"}
+)
+
+# Precision
+precision = evaluator.evaluate(
+    predictions,
+    {evaluator.metricName: "weightedPrecision"}
+)
+
+# Recall
+recall = evaluator.evaluate(
+    predictions,
+    {evaluator.metricName: "weightedRecall"}
+)
+
+# Display results
+print("Accuracy:", accuracy)
+print("F1 Score:", f1)
+print("Precision:", precision)
+print("Recall:", recall)
+
+print("Customers with prediction 1 may leave the service.")
+
+# Stop Spark
+spark.stop()
