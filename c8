@@ -1,0 +1,71 @@
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.clustering import KMeans
+from pyspark.ml.evaluation import ClusteringEvaluator
+
+# Create Spark session
+spark = SparkSession.builder.appName("CustomerSegmentation").getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read CSV file
+df = spark.read.csv(
+    "customer_behavior.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Combine input columns
+assembler = VectorAssembler(
+    inputCols=[
+        "Spending",
+        "Frequency",
+        "AccountAge"
+    ],
+    outputCol="features"
+)
+
+# Create dataset
+data = assembler.transform(df)
+
+# Create K-Means model
+kmeans = KMeans(
+    k=3,
+    seed=42
+)
+
+# Train model
+model = kmeans.fit(data)
+
+# Predict clusters
+predictions = model.transform(data)
+
+# Show cluster assignments
+print("Customer Clusters")
+predictions.select(
+    "CustomerID",
+    "Spending",
+    "prediction"
+).show()
+
+# Evaluate model
+evaluator = ClusteringEvaluator()
+
+silhouette = evaluator.evaluate(predictions)
+
+print("Silhouette Score:", silhouette)
+
+# Show cluster centers
+print("Cluster Centers")
+centers = model.clusterCenters()
+
+for i, center in enumerate(centers):
+    print("Cluster", i, ":", center)
+
+# Business insights
+print("High Spending -> VIP Customers")
+print("Medium Spending -> Upselling Customers")
+print("Low Spending -> Discount Offers")
+
+# Stop Spark
+spark.stop()
