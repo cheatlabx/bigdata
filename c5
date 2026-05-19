@@ -1,0 +1,84 @@
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import StringIndexer
+from pyspark.ml.feature import OneHotEncoder
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import StandardScaler
+from pyspark.ml import Pipeline
+
+# Create Spark session
+spark = SparkSession.builder.appName("FeatureEngineering").getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read CSV file
+df = spark.read.csv(
+    "customer_churn.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Show original data
+print("Original Data")
+df.show()
+
+# Convert text columns into numeric index
+plan_indexer = StringIndexer(
+    inputCol="PlanType",
+    outputCol="PlanIndex"
+)
+
+payment_indexer = StringIndexer(
+    inputCol="PaymentMethod",
+    outputCol="PaymentIndex"
+)
+
+# Convert index values into vectors
+encoder = OneHotEncoder(
+    inputCols=["PlanIndex", "PaymentIndex"],
+    outputCols=["PlanVec", "PaymentVec"]
+)
+
+# Combine all features into one vector
+assembler = VectorAssembler(
+    inputCols=[
+        "PlanVec",
+        "PaymentVec",
+        "MonthlyCharges",
+        "Tenure"
+    ],
+    outputCol="features"
+)
+
+# Scale feature values
+scaler = StandardScaler(
+    inputCol="features",
+    outputCol="scaledFeatures"
+)
+
+# Create pipeline
+pipeline = Pipeline(
+    stages=[
+        plan_indexer,
+        payment_indexer,
+        encoder,
+        assembler,
+        scaler
+    ]
+)
+
+# Train pipeline
+model = pipeline.fit(df)
+
+# Transform data
+result = model.transform(df)
+
+# Show final output
+print("Final Feature Data")
+result.select(
+    "CustomerID",
+    "features",
+    "scaledFeatures"
+).show(truncate=False)
+
+# Stop Spark
+spark.stop()
