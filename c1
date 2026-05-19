@@ -1,0 +1,54 @@
+from pyspark.sql import SparkSession
+
+# Create Spark session
+spark = SparkSession.builder.appName("Healthcare").getOrCreate()
+
+# Reduce log messages
+spark.sparkContext.setLogLevel("ERROR")
+
+# Read CSV file
+df_csv = spark.read.csv(
+    "patient_demographics.csv",
+    header=True,
+    inferSchema=True
+)
+
+# Read JSON file
+df_json = spark.read.json("medical_history.json")
+
+# Show statistics
+print("CSV File Statistics")
+df_csv.describe().show()
+
+print("JSON File Statistics")
+df_json.describe().show()
+
+# Fill missing values in CSV
+df_csv_clean = df_csv.fillna({
+    "Age": 0,
+    "Gender": "Unknown",
+    "City": "Unknown"
+})
+
+# Fill missing values in JSON
+df_json_clean = df_json.fillna({
+    "History": "None",
+    "LastVisit": "2023-01-01"
+})
+
+# Display original and cleaned CSV data
+print("CSV Data Before Cleaning")
+df_csv.show()
+
+print("CSV Data After Cleaning")
+df_csv_clean.show()
+
+# Display original and cleaned JSON data
+print("JSON Data Before Cleaning")
+df_json.show()
+
+print("JSON Data After Cleaning")
+df_json_clean.show()
+
+# Stop Spark session
+spark.stop()
